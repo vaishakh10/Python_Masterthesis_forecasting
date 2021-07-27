@@ -1,0 +1,207 @@
+import pandas as pd 
+from matplotlib import pyplot as plt
+import numpy as np 
+import seaborn as sns 
+import math
+from fbprophet import Prophet
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+#Reading the CSV file
+opdata= pd.read_csv ('../input/hourlly-energy2/Hourlly Energy 2.csv') 
+opdata.head() 
+
+#Changing the Date- time format
+opdata["Date and Time"] = pd.to_datetime(opdata["Date and Time"]) 
+from datetime import datetime
+opdata['date_minus_time'] = opdata["Date and Time"].apply( lambda df : datetime(year=df.year, month=df.month, day=df.day)) opdata.set_index(opdata["date_minus_time"],inplace=True)
+
+#Taking the mean value 
+opdata.resample(rule='M').mean() 
+
+#Plotting the overall data with power consumption, imported to grid , exported to grid, Solar production, self-consumption of Solar against month and year 
+df=opdata.resample(rule='M').mean()
+df.index.values 
+df["Months"]= df.index.values 
+
+df.plot(x="Months", y=["Consumption", "Imported from grid", "Exported to grid", "Solar production", "Self consumption of solar"], kind="bar",figsize=(20,10)) plt.ylabel("KW/hour") 
+
+# Plotting the year 2017
+data_2017=df[df["Months"]<"2018-01-01"]
+data_2017.plot(x="Months", y=["Consumption", "Imported from grid", "Exported to grid","Solar production", "Self consumption of solar"], kind="bar",figsize=(20,10)) plt.ylabel("Power in KW")
+plt.title('Plotting by month of year in 2017')
+plt.savefig('data_2017.png') 
+# Plotting the year 2018
+ab=df["Months"]>"2017-12-31"
+bc=df["Months"]<"2019-01-01"
+data_2018=df[ab&bc]
+data_2018.plot(x="Months", y=["Consumption", "Imported from grid", "Exported to grid","Solar production", "Self consumption of solar"], kind="bar",figsize=(20,10)) plt.ylabel("Power in KW")
+plt.title('Plotting by months of year in 2018') 
+plt.savefig('data_2018.png')
+
+# Plotting the year 2019
+ab1=df["Months"]>"2018-12-31"
+bc1=df["Months"]<"2020-01-01"
+data_2019=df[ab1&bc1]
+data_2019.plot(x="Months", y=["Consumption", "Imported from grid", "Exported to grid","Solar production", "Self consumption of solar"], kind="bar",figsize=(20,10)) 
+plt.ylabel("Power in KW") 
+plt.title('Plotting by months of year in 2019') 
+plt.savefig('data_2019.png') 
+
+# Plotting the year 2020
+data_2020=df[df["Months"]>"2019-12-31"]
+data_2020.plot(x="Months", y=["Consumption", "Imported from grid", "Exported to grid","Solar production", "Self consumption of solar"], kind="bar",figsize=(20,10)) plt.ylabel("Power in KW")
+plt.title('Plotting by months of year in 2020')
+plt.savefig('data_2020.png') 
+
+# Plotting the year in linear format for 2017, 2018,2019 and 2020 #2017
+consum=data_2017["Consumption"] 
+consum1=data_2017["Imported from grid"] consum2=data_2017["Exported to grid"] 
+plt.plot(consum, label = "Consumption") plt.plot(consum1, label = "Imported from grid") plt.plot(consum2, label = "Exported to grid") plt.title("Year 2017") 
+plt.ylabel("Power in Kw") plt.legend()
+plt.show() plt.savefig('2017.png') 
+
+#2018 
+cons=data_2018["Consumption"] cons1=data_2018["Imported from grid"] cons2=data_2018["Exported to grid"] plt.plot(cons, label = "Consumption") plt.plot(cons1, label = "Imported from grid") plt.plot(cons2, label = "Exported to grid") plt.title("Year 2018") 
+plt.ylabel("Power in Kw") 
+plt.legend() 
+plt.show() 
+plt.savefig('2018.png') 
+
+#2019 
+consume=data_2019["Consumption"] consume1=data_2019["Imported from grid"] consume2=data_2019["Exported to grid"] plt.plot(consume, label = "Consumption") 
+plt.plot(consume1, label = "Imported from grid") 
+plt.plot(consume2, label = "Exported to grid") 
+plt.title("Year 2019") 
+plt.ylabel("Power in Kw") 
+plt.legend()
+plt.show() 
+plt.savefig('2019.png') 
+
+#2020 
+consumed=data_2020["Consumption"] 
+consumed1=data_2020["Imported from grid"] consumed2=data_2020["Exported to grid"] 
+d=plt.plot(consumed, label = "Consumption") e=plt.plot(consumed1, label = "Imported from grid") f=plt.plot(consumed2, label = "Exported to grid") 
+plt.title("Year 2020") 
+plt.ylabel("Power in Kw") 
+plt.legend()
+plt.show() 
+plt.savefig('2020.png') 
+
+# Set frequency explicitly to D
+daily_data = opdata.resample(rule='D').sum() 
+daily_data = daily_data.asfreq('D') daily_data.head(10)
+
+# Create new dataset for heatmap 
+heatmap_data = daily_data.copy()
+# First we need to add weekdays as a column 
+heatmap_data['Month'] = daily_data.index.month_name() 
+
+# Next we add the year as column and group the data up to annual day of week level 
+heatmap_data['Year'] = heatmap_data.index.year 
+heatmap_data = heatmap_data.groupby(['Year', 'Month']).sum() 
+# Reset index 
+heatmap_data = heatmap_data.reset_index()
+heatmap_data = heatmap_data[heatmap_data['Year'] != 2017] 
+heatmap_data = heatmap_data[heatmap_data['Year'] != 2020] 
+
+# Pivot it to a uniform data format for heatmaps 
+heatmap_data = heatmap_data.pivot(index='Year', columns='Month', values='Consumption') 
+# Reorder columns 
+heatmap_data = heatmap_data[['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']] 
+heatmap_data.head(10) 
+def create_features(df, label=None): 
+
+""" 
+Creates time series features from datetime index. """
+df = df.copy()
+df['date'] = df.index 
+df['hour'] = df['date'].dt.hour
+df['dayofweek'] = df['date'].dt.dayofweek 
+df['quarter'] = df['date'].dt.quarter
+df['month'] = df['date'].dt.month
+df['year'] = df['date'].dt.year
+df['dayofyear'] = df['date'].dt.dayofyear 
+df['dayofmonth'] = df['date'].dt.day 
+df['weekofyear'] = df['date'].dt.isocalendar().week 
+X = df[['hour','dayofweek','quarter','month','year', 'dayofyear','dayofmonth','weekofyear']] 
+if label:
+y = df[label] return X, y 
+return X
+X, y = create_features(opdata, label='Consumption') features_and_target = pd.concat([X, y], axis=1) 
+
+##Using Prophet model to forecast 
+df= pd.read_csv ('../input/prophet3/Prophet_model.csv') #read csv file df.head() 
+df["ds"] = pd.to_datetime(df["ds"]) 
+
+from datetime import datetime 
+#rewriting the date time format 
+df["ds"] = df["ds"].apply( lambda df : datetime(year=df.year, month=df.month, day=df.day)) 
+df.set_index(df["ds"],inplace=True)
+df.columns
+df.head(10) 
+df.resample(rule='M').mean() 
+## Prophet model 
+m=Prophet()
+m.fit(df)
+future = m.make_future_dataframe(periods=365) 
+future.tail() 
+forecast = m.predict(future)
+forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].tail() 
+fig1 = m.plot(forecast)
+fig2 = m.plot_components(forecast) plt.savefig('frcst.png')
+
+##Plotting the average temperature in Oslo, Norway 
+import pandas as pd
+from matplotlib import pyplot as plt import numpy as np
+import seaborn as sns
+import math 
+
+##Reading CSV file 
+avg_temp= pd.read_csv ('../input/oslo-average-temperature/Oslo Norway Average temp.csv')
+avg_temp.head()
+from datetime import datetime 
+avg_temp["Date"] = pd.to_datetime(avg_temp["Date"]) avg_temp['average_month'] = avg_temp["Date"].apply( lambda df : datetime(year=df.year, month=df.month, day=df.day)) 
+avg_temp.set_index(avg_temp["average_month"],inplace=True) avg_temp.columns 
+
+##Plotting average temperature in 2017 
+avg_2017=avg_temp[avg_temp["average_month"]<"2018-01-01"] avg_2017.plot(x="average_month", y=["Average Temperature °C"],kind="bar",figsize=(20,10))
+plt.ylabel("Average Temperature °C") 
+plt.title('Plotting Average Temperature in °C in 2017') 
+plt.savefig('avg_2017.png') 
+
+##Plotting average temperature in 2018 
+ab=avg_temp["average_month"]>"2017-12-31" bc=avg_temp["average_month"]<"2019-01-01" avg_2018=avg_temp[ab&bc] 
+avg_2018.plot(x="average_month", y=["Average Temperature °C"],kind="bar",figsize=(20,10)) 
+plt.ylabel("Average Temperature °C") 
+plt.title('Plotting Average Temperature in °C in 2018') 
+plt.savefig('avg_2018.png') 
+
+##Plotting average temperature in 2019 
+ab1=avg_temp["average_month"]>"2018-12-31" 
+bc1=avg_temp["average_month"]<"2020-01-01" 
+avg_2019=avg_temp[ab1&bc1] avg_2019.plot(x="average_month", y=["Average Temperature °C"],kind="bar",figsize=(20,10)) 
+plt.ylabel("Average Temperature °C") 
+plt.title('Plotting Average Temperature in °C in 2019') 
+plt.savefig('avg_2019.png') 
+
+##Plotting average temperature in 2020 
+avg_2020=avg_temp[avg_temp["average_month"]>"2019-12-31"] 
+avg_2020.plot(x="average_month", 
+y=["Average Temperature °C"],kind="bar",figsize=(20,10))
+plt.ylabel("Average Temperature °C") 
+plt.title('Plotting Average Temperature in °C in 2020') 
+plt.savefig('avg_2020.png') 
+
+###END OF CODE###
+
+
+
+
+
+
+
+
+
+
+
+
